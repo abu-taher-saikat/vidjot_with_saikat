@@ -5,6 +5,8 @@ const bodyParser = require('body-parser');
 const session = require('express-session')
 const flash = require('connect-flash');
 const methodOverride = require('method-override');
+const path = require('path');
+const passport = require('passport');
 
 
 // fixing handlebars read data from mongo problem && Import function exported by newly installed node  
@@ -13,8 +15,12 @@ const {allowInsecurePrototypeAccess} = require('@handlebars/allow-prototype-acce
 
 const app = express();
 
+// Load Routes
+const ideas = require('./routes/ideas');
+const users = require('./routes/users');
+
 // mongo atlash
-const atlas = 'mongodb+srv://saikat:saikat1095@cluster0-htwdq.mongodb.net/test?retryWrites=true&w=majority'
+const atlas = 'mongodb+srv://saikat:saikat1095@cluster0-htwdq.mongodb.net/vidjot_saikat?retryWrites=true&w=majority'
 
 // connect mongodb 
 mongoose.connect(atlas, {
@@ -34,6 +40,9 @@ app.set('view engine', 'handlebars');
 app.use(bodyParser.urlencoded({extended : false}))
 app.use(bodyParser.json());
 
+// Static folder
+app.use(express.static(path.join(__dirname, 'public')));
+
 // override middleware
 app.use(methodOverride('_method'))
 
@@ -42,7 +51,11 @@ app.use(session({
     secret : "secret",
     resave : true,
     saveUninitialized : true
-}))
+}));
+
+// passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
 
 // set flash router
 app.use(flash());
@@ -52,13 +65,15 @@ app.use(function(req, res, next){
     res.locals.success_msg = req.flash('success_msg');
     res.locals.error_msg = req.flash('error_msg');
     res.locals.error = req.flash('error');
-
+    res.locals.user = req.user || null;
     next();
 })
 
-// requring Idea model
-const Idea = require('./models/Idea');
 
+app.use(function(req, res, next){
+    res.locals.seccess_msg = req.flash('this is new success message for me, job done');
+    res.locals.error_msg = req.flash('error_msg')
+})
 
 
 // Index Router
@@ -74,93 +89,31 @@ app.get('/about',(req, res)=>{
     res.render('about')
 })
 
-// Idea index page
-app.get('/ideas',(req, res)=>{
-    Idea.find({})
-    .sort({date : 'desc'})
-    .then(ideas =>{
-        res.render('ideas/index',{
-            ideas : ideas
-        })
-    })
-})
-
-// Add idea form
-app.get('/ideas/add',(req, res)=>{
-    res.render('ideas/add');
-});
 
 
-// Edit idea form
-app.get('/ideas/edit/:id', (req,res)=>{
-    Idea.findOne({_id : req.params.id})
-    .then(idea =>{
-        res.render('ideas/edit',{
-            idea : idea
-        })
-    });
-});
-
-// process Form
-app.post('/ideas',(req, res)=>{
-    let errors = [];
-
-    if(!req.body.title){
-        errors.push({text : 'Please add a title'});
-    }
-    if(!req.body.details){
-        errors.push({text : "Please add some details"});
-    }
-
-    if(errors.length > 0){
-        res.render('ideas/add',{
-            errors : errors,
-            title : res.body.title,
-            details : req.body.details
-        })
-    } else{
-        const newUser = {
-            title : req.body.title,
-            details : req.body.details
-        }
-        new Idea(newUser)
-        .save()
-        .then(idea=>{
-            req.flash('success_msg','Video idea Posted');
-            res.redirect('/ideas')
-        })
-    }
-});
-// Edit Form process
-app.put('/ideas/:id',(req, res)=>{
-    // res.send('put')
-    Idea.findOne({
-        _id : req.params.id
-    }).then(idea =>{
-        // new values
-        idea.title = req.body.title;
-        idea.details = req.body.details;
-
-        idea.save()
-        .then(()=>{
-            req.flash('success_msg', "video idea updated");
-            res.redirect('/ideas');
-        })
-    })
-})
 
 
-// Delete Idea
-app.delete('/ideas/:id',(req, res)=>{
-    // res.send('delete)
-    Idea.deleteOne({_id: req.params.id})
-    .then(()=>{
-        req.flash('success_msg',"Video idea removed");
-        res.redirect('/ideas');
-    })
-})
+// user routes 
+app.use('/ideas', ideas);
+app.use('/users', users);
 
-const port = 5000
-app.listen(port,()=>{
-    console.log(`Server started on ${port}`);
-})
+// Passport config
+require('./config/passport')(passport);
+
+
+// const port = 4000
+// // app.listen(port,()=>{
+// //     console.log(`Server started on ${port}`);
+// // })
+// app.listen(port, (err) => {  
+//     if (err) {
+//       return console.log('something bad happened', err)
+//     }
+  
+//     console.log(`server is listening on ${port}`)
+//   })
+
+  const port = 5000;
+  app.listen(port, ()=>{
+      console.log(`Server started on port ${port}`);
+  })
